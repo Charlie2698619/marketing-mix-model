@@ -1,20 +1,3 @@
-src/mmm/
-├── cli.py                  # Command-line interface
-├── config/                 # Configuration management
-│   ├── __init__.py
-│   └── settings.py
-├── data/                   # Data pipeline
-│   ├── ingestion.py       # Figshare data ingestion
-│   ├── validation.py      # Data quality checks
-│   ├── transformation.py  # Data preprocessing
-│   └── features.py        # Feature engineering
-├── models/                 # Model implementations
-│   ├── base.py           # Base model interface
-│   ├── meridian.py       # Google Meridian implementation
-│   └── pymc.py           # PyMC implementation (planned)
-└── utils/                  # Utilities
-    └── logging.py         # Structured logging
-
 # Hierarchical Bayesian Marketing Mix Modeling (MMM) System
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -280,21 +263,3 @@ pytest tests/integration/ -v
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open Pull Request
 
----
-
-## 📄 License
-
-MIT License - see the LICENSE file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Google Research: Meridian MMM framework
-- PyMC Team: Probabilistic programming tools
-- Figshare: Research data hosting
-- TidyTuesday: Marketing dataset
-
----
-
-**Built with ❤️ for data-driven marketing optimization**
