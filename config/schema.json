@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MMM Dataset Schema",
+  "description": "Schema for validating MMM input data",
+  "type": "object",
+  "properties": {
+    "columns": {
+      "type": "object",
+      "properties": {
+        "DATE_DAY": {
+          "type": "string",
+          "format": "date",
+          "description": "Date column in YYYY-MM-DD format"
+        },
+        "MMM_TIMESERIES_ID": {
+          "type": "string",
+          "description": "Unique identifier for time series"
+        },
+        "ORGANISATION_ID": {
+          "type": "string", 
+          "description": "Brand/organization identifier"
+        },
+        "TERRITORY_NAME": {
+          "type": "string",
+          "description": "Geographic territory"
+        },
+        "ALL_PURCHASES_ORIGINAL_PRICE": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Revenue proxy - total purchase value"
+        },
+        "ALL_PURCHASES": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Volume proxy - total number of purchases"
+        },
+        "GOOGLE_PAID_SEARCH_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Google paid search spend"
+        },
+        "GOOGLE_SHOPPING_SPEND": {
+          "type": "number", 
+          "minimum": 0,
+          "description": "Google shopping spend"
+        },
+        "GOOGLE_PMAX_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Google Performance Max spend"
+        },
+        "GOOGLE_DISPLAY_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Google display spend"
+        },
+        "GOOGLE_VIDEO_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Google video spend"
+        },
+        "META_FACEBOOK_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Meta Facebook spend"
+        },
+        "META_INSTAGRAM_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Meta Instagram spend"
+        },
+        "META_OTHER_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Meta other platforms spend"
+        },
+        "TIKTOK_SPEND": {
+          "type": "number",
+          "minimum": 0,
+          "description": "TikTok spend"
+        }
+      },
+      "required": [
+        "DATE_DAY",
+        "MMM_TIMESERIES_ID", 
+        "ORGANISATION_ID",
+        "TERRITORY_NAME",
+        "ALL_PURCHASES_ORIGINAL_PRICE",
+        "ALL_PURCHASES"
+      ]
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "unique_key": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Columns that form unique key"
+        },
+        "date_range": {
+          "type": "object",
+          "properties": {
+            "min_date": {"type": "string", "format": "date"},
+            "max_date": {"type": "string", "format": "date"}
+          }
+        },
+        "completeness": {
+          "type": "object",
+          "properties": {
+            "min_completeness_pct": {"type": "number", "minimum": 0, "maximum": 100}
+          }
+        }
+      }
+    }
+  },
+  "required": ["columns"]
+}

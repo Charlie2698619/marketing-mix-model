@@ -1,0 +1,24 @@
+# Local development profile overrides
+runtime:
+  device: "cpu"
+  n_threads: 2
+  memory_limit_gb: 8
+
+model:
+  backend_params:
+    meridian:
+      draws: 500
+      warmup: 200
+      chains: 2
+    pymc:
+      draws: 500
+      tune: 200
+      chains: 2
+
+training:
+  runtime_guardrails:
+    max_hours: 1
+    memory_limit_gb: 8
+
+logging:
+  level: "DEBUG"

@@ -1,0 +1,16 @@
+# Docker profile overrides
+paths:
+  raw: "/workspace/data/raw"
+  interim: "/workspace/data/interim"
+  features: "/workspace/data/features"
+  artifacts: "/workspace/artifacts"
+  reports: "/workspace/reports"
+
+runtime:
+  device: "auto"
+  n_threads: 4
+  memory_limit_gb: 16
+
+tracking:
+  mlflow:
+    tracking_uri: "file:///workspace/mlruns"

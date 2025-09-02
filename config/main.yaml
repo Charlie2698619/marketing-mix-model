@@ -1,0 +1,1028 @@
+# =============================================================================
+# HIERARCHICAL BAYESIAN MMM CONFIGURATION - PIPELINE FLOW ORGANIZATION
+# Single source of truth for all MMM parameters organized by pipeline stage
+# =============================================================================
+
+# =============================================================================
+# 📋 PROJECT METADATA - Basic project identification
+# Stage: INITIALIZATION
+# Hint: Set these once at project start, rarely needs changes during development
+# =============================================================================
+project:
+  name: "conjura_mmm_analysis"                    # Unique identifier for this project
+  # description: "Hierarchical Bayesian MMM analysis of Conjura e-commerce data"  # Future: Project description
+
+# =============================================================================
+# 📁 FILE SYSTEM PATHS - Data and output locations  
+# Stage: INITIALIZATION
+# Hint: Configure paths for your environment (local/docker/k8s)
+# =============================================================================
+paths:
+  raw: "data/raw"                                # Raw data from external sources
+  interim: "data/interim"                        # Processed intermediate data
+  models: "data/models"                          # Trained models and artifacts
+  features: "data/features"                      # Engineered features
+  artifacts: "artifacts"                         # Model artifacts and results
+  reports: "reports"                             # Generated reports and visualizations
+  synthetic: "data/synthetic"                    # Synthetic data for testing
+
+# =============================================================================
+# 🔌 DATA INGESTION - How to load data from external sources
+# Stage: 1. INGEST
+# Hint: Configure data connectors for your data sources
+# Scripts: src/mmm/data/ingest.py, src/mmm/cli.py (ingest command)
+# =============================================================================
+ingest:
+  # connector_priority: ["figshare", "local_csv"] # Future: Priority order for data sources
+  figshare:
+    enabled: true                             # Enable Figshare data connector
+    file_pattern: "conjura_mmm_data.csv"      # File pattern to match
+
+# =============================================================================
+# 📊 DATA CONFIGURATION - Raw data structure and mapping
+# Stage: 1. INGEST
+# Hint: Map your raw data columns to standardized MMM format
+# Scripts: src/mmm/data/ingest.py
+# =============================================================================
+data:
+  frequency: "daily"                             # Input data frequency (daily → aggregated to weekly)
+  timezone: "UTC"                                # Timezone for date handling
+  outcome: "ALL_PURCHASES_ORIGINAL_PRICE"        # What we're predicting (revenue column name)
+  # brands: ["all"]                              # Future: Multi-brand analysis
+  # regions: ["US"]                              # Future: Multi-region analysis  
+  # keys: ["date", "brand", "region"]            # Future: Primary keys for aggregation
+  brand_key: "ORGANISATION_ID"                   # Column name for brand identifier
+  region_key: "TERRITORY_NAME"                   # Column name for region identifier
+  date_col: "DATE_DAY"                          # Column containing dates in raw data
+  revenue_col: "ALL_PURCHASES_ORIGINAL_PRICE"   # Target variable: total revenue from all purchases
+  volume_col: "ALL_PURCHASES"                   # Volume metric: number of transactions
+  
+  # MEDIA CHANNEL MAPPING - Map raw columns to standardized names
+  channel_map:
+    google_search: "GOOGLE_PAID_SEARCH_SPEND"    # Google Search ads investment
+    google_shopping: "GOOGLE_SHOPPING_SPEND"      # Google Shopping ads investment
+    google_pmax: "GOOGLE_PMAX_SPEND"              # Google Performance Max investment
+    google_display: "GOOGLE_DISPLAY_SPEND"        # Google Display ads investment
+    google_video: "GOOGLE_VIDEO_SPEND"            # Google Video ads investment
+    meta_facebook: "META_FACEBOOK_SPEND"          # Meta Facebook ads investment
+    meta_instagram: "META_INSTAGRAM_SPEND"        # Meta Instagram ads investment
+    meta_other: "META_OTHER_SPEND"                # Meta other platforms investment
+    tiktok: "TIKTOK_SPEND"                       # TikTok ads investment
+    
+  # DIGITAL ENGAGEMENT METRICS - Track marketing funnel
+  digital_specific:
+    platform_metrics: {}                        # Platform-specific metrics (future extension)
+    creative_metadata: false                     # Whether to include creative-level data
+
+# =============================================================================
+# ✅ DATA VALIDATION - Quality checks and business rules
+# Stage: 2. VALIDATE  
+# Hint: Adjust thresholds based on your data quality requirements
+# Scripts: src/mmm/data/validate.py
+# =============================================================================
+validation:
+  schema_ref: "config/schema.json"               # Reference schema for data validation
+  
+  # PANDERA SCHEMA VALIDATION
+  pandera:
+    enabled: true                               # Enable automated schema validation
+    update_schema_on_drift: false              # Update schema when data drift detected
+  
+  # MMM IDENTIFIABILITY REQUIREMENTS - Critical for model convergence
+  coverage_frequency:
+    weekly_cadence: true                         # Require consistent weekly cadence
+    min_weeks_required: 52                       # Minimum weeks (1 year absolute minimum)
+    preferred_weeks: 104                         # Preferred weeks (2+ years recommended)
+    max_missing_weeks_pct: 2.0                  # Maximum 2% missing weeks per brand×region
+    
+  identifiability:
+    min_zero_spend_weeks_pct: 10                # Minimum % weeks with near-zero spend
+    preferred_zero_spend_weeks_pct: 20           # Preferred % for better identification
+    max_channel_correlation: 0.9                # Maximum channel correlation (avoid multicollinearity)
+    max_promo_channel_correlation: 0.95         # Maximum promo-channel correlation
+    coefficient_variation_threshold: 0.1        # Minimum spend variation required
+    
+  # BUSINESS LOGIC 
+  value_sanity:
+    allow_negative_revenue: false               # Revenue must be non-negative
+    allow_negative_spend: false                 # Spend must be non-negative
+    allow_negative_clicks: false                # Clicks must be non-negative
+    max_spend_order_difference: 3               # Max log10 difference between channels
+    cpm_tolerance_pct: 15                       # CPM calculation tolerance ±15%
+    cpc_tolerance_pct: 15                       # CPC calculation tolerance ±15%
+    max_discrepancy_rows_pct: 10               # Max % rows with metric discrepancies
+    outlier_percentile: 99                      # Winsorize top 1% outliers
+    document_outliers: true                     # Document outlier treatments
+    
+  # DATA INTEGRITY CHECKS
+  keys_duplicates:
+    allow_duplicates: false                     # No duplicate (date, brand, region) records
+    check_name_consistency: true                # Flag inconsistent brand/region names
+    prefer_ids_over_names: true                 # Prefer IDs over names for stability
+    similarity_threshold: 0.8                   # Threshold for flagging similar names
+    
+  # QUALITY SCORE THRESHOLDS
+  quality_thresholds:
+    min_validation_score: 0.8                  # Minimum score to pass validation
+    warning_validation_score: 0.9              # Score for warnings vs errors
+    max_missing_data_pct: 2.0                  # Maximum missing data percentage
+    max_high_missing_cols: 5                   # Max columns with >50% missing
+    min_digital_coverage_pct: 80               # Minimum digital metrics coverage
+    min_digital_quality_score: 75              # Minimum digital quality score
+    max_roi_implausible_channels: 2            # Max channels with implausible ROI
+    roi_range: [0.1, 50]                      # Plausible ROI range (10% to 5000%)
+
+# =============================================================================
+# 🔄 DATA TRANSFORMATION - Data cleaning and preprocessing
+# Stage: 3. TRANSFORM
+# Hint: Configure cleaning policies based on data issues found in validation
+# Scripts: src/mmm/data/transform.py
+# =============================================================================
+enhanced_cleaning:
+  # NEGATIVE VALUES HANDLING
+  negative_values:
+    revenue_policy: "route_to_adjustments"    # Route negative revenue to returns column
+    flag_negative_telemetry: true             # Flag negative telemetry for investigation
+  
+  # OUTLIER HANDLING - Context-aware winsorization
+  outliers:
+    policy: "contextual_winsorization"        # Preserve real business events
+    percentile_method: "per_group"            # Per-group vs global percentiles
+    winsorize_percentile: 99                  # Percentile threshold per group
+    exempt_promo_periods: true                # Don't winsorize during promotions
+    exempt_launch_periods: true               # Don't winsorize during launches
+    promo_flag_column: "PROMO_FLAG"           # Promotional period indicator
+    launch_detection_method: "spend_jumps"    # Auto-detect campaign launches
+    launch_threshold_multiplier: 3.0          # 3x spend = launch detection
+    use_robust_zscore: true                   # Use MAD-based z-scores
+    mad_threshold: 3.5                        # Modified z-score threshold
+    seasonal_detrend: true                    # Remove seasonal before outlier detection
+    detect_logging_glitches: true             # Detect data logging errors
+    glitch_rules:
+      spend_with_zero_impressions: true       # Spend>0 but impressions=0
+      spend_jump_multiplier: 10.0             # >10x spend jump detection
+    document_exemptions: true                 # Log exempted periods and reasons
+    document_caps_by_channel: true            # Track caps per channel
+  
+  # DUPLICATE HANDLING
+  duplicates:
+    policy: "smart_aggregation"               # Aggregate vs drop duplicates
+    primary_key: ["date", "brand", "region"]  # Uniqueness constraint
+    numeric_aggregation: "sum"                # Sum conflicting numeric values
+    string_aggregation: "latest_timestamp"    # Latest for string conflicts
+    timestamp_column: "ingestion_ts"          # Timestamp for latest logic
+    additive_columns: [".*_SPEND$", ".*_CONVERSIONS$"]  # Columns to sum
+    non_additive_columns: [".*_CPM$", ".*_CVR$"]        # Columns to take latest
+    generate_dedup_report: true               # Generate deduplication report
+    include_in_cleaning_report: true          # Include in main report
+  
+  # MISSING DATA HANDLING - Campaign-aware imputation
+  missing_data:
+    spend_missing_policy: "campaign_aware"    # Distinguish pauses vs outages
+    outcome_missing_policy: "drop_periods"    # Drop periods with missing revenue
+    detect_campaign_pauses: true              # Identify planned pauses
+    pause_detection_method: "zero_impressions"  # Method for pause detection
+    paused_spend_value: 0.0                   # Impute 0 for paused campaigns
+    detect_outages: true                      # Identify platform outages
+    outage_signals: ["zero_impressions_with_spend", "multi_channel_simultaneous_zero"]
+    outage_imputation: "neighboring_distribution"  # Imputation for outages
+    create_outage_flags: true                 # Create outage indicator columns
+    adstock_aware: true                       # Preserve adstock continuity
+    mask_training_periods: true               # Mask flagged periods from training
+    kalman_imputation:                        # Advanced imputation (future extension)
+      enabled: false                          # State-space imputation for KPIs
+      create_imputed_flags: true              # Create imputation indicators
+  
+  # DOCUMENTATION
+  documentation:
+    document_all_changes: true                # Log every cleaning action
+    save_original_data: true                  # Backup raw data with hash
+    generate_cleaning_report: true            # Detailed cleaning report
+    version_reports: true                     # Version cleaning reports
+    attach_to_mlflow: true                    # Attach reports to MLflow runs
+    hash_raw_data: true                       # Hash for version tracking
+    hash_algorithm: "sha256"                  # Hashing algorithm
+    store_data_lineage: true                  # Track transformation lineage
+    report_format: ["json", "html"]           # Report output formats
+    include_visualizations: true              # Add plots to HTML reports
+    detail_level: "comprehensive"             # Report detail level
+
+# =============================================================================
+# ⚙️ FEATURE ENGINEERING - Transform data into model-ready features
+# Stage: 4. FEATURES
+# Hint: Start with default parameters, tune based on model performance
+# Scripts: src/mmm/features/engineer.py and individual feature modules
+# =============================================================================
+features:
+  # ADSTOCK TRANSFORMATION - Media carryover effects
+  # Hint: Tune decay rates based on channel behavior (search=fast, brand=slow)
+  adstock:
+    default_type: "geometric"                    # Default: geometric decay
+    default_decay: 0.9                          # Default carryover rate (90%)
+    
+    # PLATFORM-SPECIFIC PARAMETERS - Customize per channel
+    platform_overrides:
+      # Search channels - fast decay (immediate intent)
+      google_search: 
+        type: "geometric"
+        decay: 0.7                              # Short carryover
+        lambda: 0.8
+      google_shopping: 
+        type: "geometric"
+        decay: 0.8                              # Medium carryover
+        lambda: 0.7
+      
+      # Brand channels - slower decay (awareness building)
+      google_display:
+        type: "weibull"                         # Flexible decay shape
+        decay: 0.85
+        shape: 1.2                              # Increasing hazard
+        scale: 3.0                              # Scale in weeks
+      google_video:
+        type: "weibull"
+        decay: 0.8
+        shape: 0.8                              # Decreasing hazard
+        scale: 4.0
+      
+      # Social channels - medium decay (engagement patterns)  
+      meta_facebook: 
+        type: "weibull"
+        decay: 0.6
+        shape: 0.9
+        scale: 2.5
+      meta_instagram: 
+        type: "weibull"
+        decay: 0.6
+        shape: 0.85
+        scale: 2.0
+      tiktok: 
+        type: "weibull"
+        decay: 0.5                              # Shortest carryover
+        shape: 0.7
+        scale: 1.5
+    
+    # ADVANCED PARAMETERS
+    advanced_params:
+      convolve_func: "adstock_hill"             # Convolution function
+      normalizing: "sum"                        # Preserve total spend mass
+      weibull_mode: "pdf"                       # Weibull semantics
+      fill_na_method: "zero"                    # NaN handling
+      mode: "multiplicative"                    # How adstock combines
+      max_lag: 8                                # Max weeks of carryover
+    
+    performance:
+      use_vectorized_operations: true           # Performance optimization
+      cache_adstock_kernels: true               # Cache for speed
+      stable_hashing: true                      # Consistent hashing
+  
+  # SATURATION TRANSFORMATION - Diminishing returns modeling
+  # Hint: High-intent channels saturate faster, brand channels slower
+  saturation:
+    type: "hill"                                 # S-curve saturation
+    normalization: "max"                         # Normalization method
+    preserve_index: false                        # Index preservation
+    default_inflection: 0.5                     # Saturation point (k)
+    default_slope: 1.0                          # Curve steepness (s)
+    platform_specific: true                     # Enable platform customization
+    
+    # CHANNEL-SPECIFIC PARAMETERS
+    channel_overrides:
+      # High-intent channels saturate faster
+      google_search:
+        k: 0.3                                  # Earlier saturation
+        s: 1.2                                  # Steeper curve
+        normalization: "p95"                    # Robust to spikes
+      google_shopping:
+        k: 0.4
+        s: 1.0
+        normalization: "max"
+      
+      # Brand channels saturate slower
+      google_display:
+        k: 0.7                                  # Later saturation
+        s: 0.8                                  # Gentler curve
+        normalization: "p95"
+      google_video:
+        k: 0.6
+        s: 0.9
+        normalization: "p95"
+      
+      # Social channels with logistic curves
+      meta_facebook:
+        type: "logistic"
+        k: 1.5                                  # Steepness
+        x0: 0.4                                 # Inflection point
+        normalization: "max"
+      meta_instagram:
+        type: "logistic"
+        k: 1.8
+        x0: 0.3
+        normalization: "p95"
+      tiktok:
+        type: "logistic"
+        k: 2.0                                  # Very steep
+        x0: 0.2                                 # Early saturation
+        normalization: "p95"
+    
+    # VALIDATION
+    validation:
+      check_monotonic: true                     # Ensure monotonic curves
+      check_bounded: true                       # Ensure [0,1] bounds
+      warn_extreme_params: true                 # Warn about extreme values
+  
+  # SEASONALITY - Time-based patterns
+  # Hint: Start with defaults, add holidays relevant to your business
+  seasonality:
+    fourier_terms: 4                            # Fourier components
+    weekly_fourier: true                        # Weekly patterns
+    annual_fourier: true                        # Annual patterns
+    yearly_trend: true                          # Growth trend
+    trend_normalization: "training_only"        # Prevent data leakage
+    pattern_mode: "fourier"                     # Pattern type
+    weekly_patterns: true                       # Day-of-week effects
+    monthly_patterns: true                      # Month-of-year effects
+    cyclic_encoding: true                       # Sin/cos encoding
+    
+    # HOLIDAY CONFIGURATION
+    holiday_calendar: "US"                      # Country calendar
+    include_observed: true                      # Weekend holiday moves
+    holiday_grouping: "individual"              # Holiday grouping strategy
+    holiday_effects: ["before", "after"]       # Spillover effects
+    major_holidays_only: false                 # All vs major holidays
+    return_date: true                          # Include date column
+    feature_validation: true                    # Validate consistency
+    
+    # EXTENDED HOLIDAYS
+    extended_holidays:
+      labor_day: true
+      memorial_day: true
+      mlk_day: true
+      presidents_day: true
+      veterans_day: true
+      columbus_day: true
+      good_friday: true
+      easter: true
+      black_friday: true                        # Key for e-commerce
+      cyber_monday: true                        # Key for e-commerce
+    
+    holiday_groups:                            # For grouped mode
+      major_gift: ["christmas", "thanksgiving", "easter"]
+      summer: ["july_4th", "memorial_day", "labor_day"]
+      winter: ["new_years", "presidents_day", "mlk_day"]
+      shopping: ["black_friday", "cyber_monday"]
+  
+  # BASELINE CONTROLS - Non-media factors
+  # Hint: Start simple, add macro variables if available
+  baseline:
+    trend_normalization: true                 # Normalize trend
+    trend_types: ["linear", "log", "quadratic"] # Trend types
+    center_before_interactions: true            # Center for stability
+    macro_variables: []                         # External economic factors
+    macro_config:
+      publication_lag_days: 30                  # Avoid look-ahead bias
+      interpolation_method: "forward_fill"      # Interpolation method
+      scaling_strategy: "train_only"            # Prevent leakage
+      warn_future_extrapolation: true           # Warn on extrapolation
+      clip_future_extrapolation: false          # Clip vs NaN
+    
+    # EXTERNAL EVENTS - Major business disruptions
+    external_events:
+      - name: covid_lockdown
+        start: "2020-03-15"
+        end: "2020-06-01"
+        impact_type: "step"
+      - name: covid_recovery
+        start: "2020-06-02"
+        end: "2021-12-31"
+        impact_type: "ramp_up"
+      - name: supply_chain_crisis
+        start: "2021-09-01"
+        end: "2022-03-31"
+        impact_type: "step"
+    
+    # INTERACTIONS
+    interactions:
+      media_top_k: 3                           # Top channels for interactions
+      selection_method: "variance"              # Selection method
+      max_seasonal_interactions: 4              # Limit interactions
+      include_trend_interactions: true          # Trend × media
+    
+    # QUALITY CONTROL
+    quality_control:
+      drop_zero_variance: true                  # Remove zero variance
+      min_variance_threshold: 1e-6              # Minimum variance
+      max_correlation_threshold: 0.99           # Max correlation
+      log_feature_diagnostics: true             # Log diagnostics
+  
+  # ATTRIBUTION MODELING (FUTURE EXTENSION)
+  # Hint: Enable when conversion data is available
+  attribution:
+    enabled: false                               # Disable for now - future extension
+    default_model: "position_based"             # Attribution model
+    available_models: ["last_touch", "first_touch", "linear", "time_decay", "position_based"]
+    
+    model_parameters:
+      position_based:
+        first_touch_weight: 0.4
+        last_touch_weight: 0.4
+        middle_touch_weight: 0.2
+        view_through_weight: 0.3
+        assisted_conversion_weight: 0.4
+      time_decay:
+        half_life_days: 7
+        decay_rate: 0.1
+        view_through_weight: 0.3
+    
+    attribution_windows:
+      click_through_days: 7
+      view_through_days: 1
+      interaction_precedence: ["click", "view"]
+    
+    overlap_adjustments:
+      enabled: true
+      overlap_penalty: 0.1
+      penalty_method: "linear"
+      min_retained_credit: 0.1
+    
+    data_handling:
+      missing_conversion_fallback: "spend_based"
+      synthetic_conversion_rate: 0.02
+      conversion_columns: ["conversion_value", "revenue", "sales", "purchases"]
+      interaction_columns: ["clicks", "impressions", "views", "engagements"]
+      min_interaction_threshold: 10
+      attribution_coverage_threshold: 0.7
+    
+    feature_creation:
+      enabled: true
+      aggregation_level: "daily"
+      channel_level_features: true
+      cross_channel_features: true
+    
+    validation:
+      enabled: true
+      conservation_check: true
+      coverage_check: true
+      distribution_analysis: true
+      attribution_sum_tolerance: [0.95, 1.05]
+      min_coverage_rate: 0.7
+      max_single_channel_share: 0.8
+  
+  # CREATIVE FATIGUE (FUTURE EXTENSION)
+  # Hint: Enable when creative refresh data is available
+  creative_fatigue:
+    enabled: false                               # Disable for now - future extension
+    half_life: 14                               # Days for effectiveness to halve
+    refresh_signal: "weekly_creative_change"    # Refresh indicator
+    detection_methods: ["spend_pattern_changes", "performance_drops", "campaign_launches"]
+    fatigue_floor: 0.2                          # Minimum effectiveness (20%)
+    apply_to_stage: "adstocked"                 # Apply to raw or adstocked
+    
+    refresh_detection:
+      min_gap_days: 7
+      spend_change_threshold: 0.5
+      rolling_window_days: 7
+      campaign_launch_threshold: 0.1
+    
+    external_matching:
+      max_distance_days: 5
+      require_exact_match: false
+    
+    validation:
+      check_fatigue_consistency: true
+      warn_excessive_refreshes: true
+      max_refresh_rate: 0.4
+      min_refresh_rate: 0.05
+    
+    metrics:
+      calculate_fatigue_impact: true
+      track_refresh_frequency: true
+      validate_against_external: false
+  
+  # CUSTOM BUSINESS LOGIC (FUTURE EXTENSION)
+  # Hint: Add business-specific features as needed
+  custom_terms:
+    promo_flag: 
+      enabled: false                            # Disable for now - future extension
+      sign_constraint: "positive"               # Promotions should be positive
+      revenue_threshold: 1.3                    # Revenue spike threshold
+      spend_threshold: 1.5                      # Spend spike threshold
+      leakage_prevention: true                  # Use train-only stats
+      price_elasticity: false                   # Price elasticity modeling
+      inventory_effects: false                  # Inventory constraints
+    
+    channel_mapping:
+      use_config_channels: true                 # Use data.channel_map
+      fallback_patterns: ["_spend", "_SPEND"]   # Fallback patterns
+
+# =============================================================================
+# 🤖 MODEL SPECIFICATION - Bayesian model structure
+# Stage: 5. TRAIN
+# Hint: Start with Meridian backend, adjust priors based on business knowledge
+# Scripts: src/mmm/models/meridian.py, src/mmm/models/pymc.py, src/mmm/cli.py (train)
+# =============================================================================
+model:
+  backend: "pymc"                           # Modeling framework (meridian/pymc)
+  allow_target_derived: false                   # Prevent target leakage
+  
+  # FEATURE CLASSIFICATION - Universal patterns for both Meridian and PyMC
+  feature_classification:
+    # Auto-detection patterns for feature classification
+    patterns:
+      media_spend: [".*_spend$", ".*_investment$", ".*_cost$"]
+      media_clicks: [".*_clicks$", ".*_sessions$"]
+      media_impressions: [".*_impressions$", ".*_views$"]
+      adstock: ["adstock_.*", ".*_adstocked$", ".*_adstock$"]
+      saturation: [".*_saturated$", "saturated_.*"]
+      seasonality: ["sin_.*", "cos_.*", "trend$", ".*_seasonal$"]
+      baseline: ["external_.*", "baseline_.*", ".*_baseline$"]
+      holidays: [".*_day$", ".*_before$", ".*_after$", "christmas", "thanksgiving", "black_friday"]
+      creative: ["creative_.*", ".*_creative$", ".*_fatigue$"]
+      competitors: ["competitor_.*", ".*_competitor$"]
+      adjustments: [".*_ADJUSTMENTS$", ".*_RETURNS$", ".*_adjustments$", ".*_returns$"]  # Exclude these
+    
+    # Automatic exclusions for problematic features
+    auto_exclude:
+      zero_variance: true                       # Auto-exclude zero-variance features
+      adjustments: true                         # Auto-exclude adjustment features
+      returns: true                             # Auto-exclude return features
+      constants: true                           # Auto-exclude constant features
+    
+    # Manual feature overrides (when auto-detection fails)
+    manual_overrides:
+      media_spend: []                           # Force these features as media spend
+      media_clicks: []                          # Force these features as media clicks
+      control: []                               # Force these features as controls
+      exclude: []                               # Exclude these features entirely
+    
+    # Feature validation rules
+    validation:
+      require_media: true                       # Require at least one media feature
+      require_controls: true                    # Require at least one control feature
+      min_media_features: 1                     # Minimum number of media features
+      min_control_features: 3                   # Minimum number of control features
+      warn_unknown_features: true               # Warn about unclassified features
+  
+  # HIERARCHICAL STRUCTURE
+  hierarchy:
+    levels: ["region", "brand", "platform"]     # Hierarchical dimensions
+    sharing_strategy: "partial_pooling"         # Information sharing strategy
+  
+  # MODEL CONSTRAINTS
+  constraints:
+    non_negative: ["adstock_decay", "saturation_slope", "baseline_intercept"]
+    monotonic: ["saturation_curve"]
+  
+  # BUSINESS-INFORMED PRIORS - Adjust based on your business knowledge
+  priors:
+    roi_bounds:                                 # Expected ROI ranges by channel
+      google_search: [0.5, 8.0]                # Search: high intent, good ROI
+      google_shopping: [1.0, 12.0]             # Shopping: very high intent
+      google_display: [0.3, 4.0]               # Display: awareness, lower ROI
+      google_video: [0.4, 6.0]                 # Video: engagement
+      meta_facebook: [0.6, 10.0]               # Facebook: good targeting
+      meta_instagram: [0.5, 8.0]               # Instagram: visual appeal
+      tiktok: [0.4, 6.0]                       # TikTok: viral potential
+    adstock_decay: [0.3, 0.95]                 # Carryover range
+    saturation_params: [0.1, 2.0]              # Saturation bounds
+    baseline_priors: [-2.0, 2.0]               # Baseline bounds (log scale)
+  
+  # BACKEND-SPECIFIC PARAMETERS
+  backend_params:
+    meridian:                                   # Google Meridian settings
+      # Sampling parameters
+      draws: 2000                               # Posterior samples
+      warmup: 1000                              # Warmup samples
+      chains: 4                                 # MCMC chains
+      target_accept: 0.8                        # Acceptance rate
+      seed: 42                                  # Random seed
+      
+      # ROI prior configuration
+      roi_prior_mu: 0.2                         # ROI prior mean (20%)
+      roi_prior_sigma: 0.9                      # ROI prior uncertainty
+      
+      # Meridian-specific sampling
+      n_prior_samples: 500                      # Prior samples
+      n_chains: 4                               # Parallel chains
+      n_adapt: 1000                             # Adaptation samples
+      n_burnin: 500                             # Burn-in samples
+      n_keep: 1000                              # Final samples
+      
+      # Data configuration
+      kpi_type: "revenue"                       # KPI type for Meridian
+      geo_column: "geo"                         # Geography column name
+      time_column: "time"                       # Time column name
+      default_geo: "US"                         # Default geography
+      
+      # Channel configuration (auto-detected from channel_map if empty)
+      channels: []                              # Override auto-detection
+      
+      # Media requirements
+      require_media_spend: true                 # Require spend data
+      require_reach_frequency: false            # Require reach/frequency data
+      
+    pymc:                                       # PyMC alternative backend
+      # Sampling parameters
+      draws: 2000                               # Posterior draws
+      tune: 1000                                # Tuning steps
+      chains: 4                                 # Parallel chains
+      cores: 4                                  # CPU cores to use
+      target_accept: 0.8                        # Target acceptance rate
+      seed: 42                                  # Random seed
+      
+      # Model configuration
+      likelihood: "lognormal"                   # Likelihood: lognormal, normal, student_t
+      
+      # Hierarchical modeling
+      hierarchical: true                        # Enable hierarchical effects
+      partial_pooling: true                     # Partial pooling for channels
+      
+      # Feature grouping for priors
+      media_prior_sigma: 1.0                    # Media coefficient prior width
+      control_prior_sigma: 0.5                 # Control coefficient prior width
+      baseline_prior_sigma: 2.0                # Baseline prior width
+      
+      # Advanced options (future extension)
+      use_advi: false                           # Use ADVI for initialization
+      advi_iterations: 50000                    # ADVI iterations if enabled
+      chains: 4
+      target_accept: 0.8
+      cores: 4
+      likelihood: "lognormal"
+
+# =============================================================================
+# 🎯 TRAINING CONFIGURATION - How to train and validate models
+# Stage: 5. TRAIN
+# Hint: Use rolling windows for temporal data, multiple seeds for robustness
+# Scripts: All model training scripts
+# =============================================================================
+training:
+  # TEMPORAL VALIDATION 
+  rolling_splits:
+    window_weeks: 104                           # Training window (2 years)
+    step_weeks: 13                              # Validation step (quarterly)
+  seeds: [42, 123, 456]                        # Multiple seeds for robustness
+  
+  # RUNTIME GUARDRAILS
+  runtime_guardrails:
+    max_hours: 4                                # Maximum training time
+    memory_limit_gb: 16                         # Memory limit
+  
+  # ADVANCED TRAINING (FUTURE EXTENSION)
+  advanced_training:
+    early_stopping: true                       # Stop on convergence
+    adaptive_sampling: true                     # Adapt sampling parameters
+    convergence_monitoring: true                # Real-time monitoring
+    checkpoint_frequency: "hourly"              # Checkpoint frequency
+
+# =============================================================================
+# 🔍 MODEL COMPLEXITY MANAGEMENT - Ensure model reliability
+# Stage: 5. TRAIN (DIAGNOSTICS)
+# Hint: Start with defaults, tighten thresholds if you have convergence issues
+# Scripts: src/mmm/models/pymc.py, src/mmm/models/meridian.py
+# =============================================================================
+complexity:
+  model_selection:
+    auto_simplify: true                         # Auto-simplify on convergence issues
+    feature_selection: false                    # Feature selection (future extension)
+  
+  # CONVERGENCE DIAGNOSTICS - Critical for Bayesian models
+  identifiability:
+    max_rhat: 1.1                               # Maximum R-hat (1.1 = good convergence)
+    min_ess: 400                                # Minimum effective sample size
+    max_param_correlation: 0.9                  # Max parameter correlation
+    auto_simplify_on_fail: true                 # Simplify if fails
+
+# =============================================================================
+# 📈 BUDGET OPTIMIZATION - Optimal spend allocation
+# Stage: 6. OPTIMIZE
+# Hint: Adjust constraints based on business rules and channel strategies
+# Scripts: src/mmm/optimization/allocator.py, src/mmm/cli.py (optimize)
+# =============================================================================
+optimization:
+  objective: "roas"                             # Optimization goal 
+  
+  # BUSINESS CONSTRAINTS - Platform-specific constraints for realistic optimization
+  platform_constraints:
+    # Global defaults (applied when platform-specific not defined)
+    default_min_spend_pct: 0.05                # Default minimum 5% per platform
+    default_max_spend_pct: 0.4                 # Default maximum 40% per platform
+    
+    # Platform-specific constraints based on strategic importance and capacity
+    platform_specific:
+      google_search:
+        min_spend_pct: 0.10                    # Search is core - minimum 10%
+        max_spend_pct: 0.35                    # High-intent but saturates
+        strategic_priority: "high"             # Strategic importance
+      google_shopping:
+        min_spend_pct: 0.08                    # High converting channel
+        max_spend_pct: 0.30
+        strategic_priority: "high"
+      google_display:
+        min_spend_pct: 0.03                    # Lower bound for awareness
+        max_spend_pct: 0.25                    # Upper bound due to performance
+        strategic_priority: "medium"
+      google_video:
+        min_spend_pct: 0.02
+        max_spend_pct: 0.20
+        strategic_priority: "medium"
+      meta_facebook:
+        min_spend_pct: 0.05
+        max_spend_pct: 0.30
+        strategic_priority: "high"
+      meta_instagram:
+        min_spend_pct: 0.04
+        max_spend_pct: 0.25
+        strategic_priority: "medium"
+      tiktok:
+        min_spend_pct: 0.02                    # Emerging channel - lower bounds
+        max_spend_pct: 0.15                    # Limited capacity
+        strategic_priority: "low"
+    
+    pacing_constraints: false                   # Pacing constraints (future extension)
+  
+  # SCENARIO ANALYSIS - Complete scenario definitions with platform allocation strategies
+  scenario_presets:
+    conservative:
+      budget_multiplier: 0.8                   # 80% of current budget
+      allocation_strategy: "risk_averse"       # Favor proven channels
+      platform_adjustments:
+        google_search: 1.1                     # Increase high-ROI channels
+        google_shopping: 1.05
+        google_display: 0.9                    # Reduce brand channels
+        google_video: 0.85
+        meta_facebook: 0.95
+        meta_instagram: 0.9
+        tiktok: 0.7                            # Most reduction on experimental
+      description: "Risk-averse scenario focusing on proven high-ROI channels"
+    
+    current:
+      budget_multiplier: 1.0                   # Current budget level
+      allocation_strategy: "maintain_proportions"
+      platform_adjustments: {}                 # No adjustments - maintain current allocation
+      description: "Baseline scenario maintaining current allocation proportions"
+    
+    aggressive:
+      budget_multiplier: 1.2                   # 120% of current budget
+      allocation_strategy: "growth_focused"    # Expand into higher potential
+      platform_adjustments:
+        google_search: 1.05                    # Modest increase in search
+        google_shopping: 1.1
+        google_display: 1.15                   # Invest in awareness
+        google_video: 1.2
+        meta_facebook: 1.1
+        meta_instagram: 1.15
+        tiktok: 1.3                            # Biggest increase for growth potential
+      description: "Growth-focused scenario expanding reach and testing new channels"
+    
+    performance_focused:
+      budget_multiplier: 1.0                   # Same budget, reallocation only
+      allocation_strategy: "performance_optimization"
+      platform_adjustments:
+        google_search: 1.25                    # Heavy focus on performance
+        google_shopping: 1.2
+        google_display: 0.8                    # Reduce less performing
+        google_video: 0.75
+        meta_facebook: 1.1                     # Moderate increase
+        meta_instagram: 1.0
+        tiktok: 0.6                            # Significantly reduce
+      description: "Performance-first scenario reallocating to highest-ROI channels"
+  
+  # ADVANCED OPTIMIZATION FEATURES (FUTURE EXTENSIONS)
+  # business_logic:                            # Future: Advanced business rules
+  #   fatigue_penalty: true                    # Future: Creative fatigue penalty
+  #   overlap_adjustment: true                 # Future: Audience overlap adjustment
+  #   platform_synergies: false               # Future: Cross-platform synergies
+  #   maintain_baseline_spend: true           # Future: Minimum presence rules
+  #   respect_capacity_limits: true           # Future: Platform capacity constraints
+  
+  # UNCERTAINTY HANDLING (FUTURE EXTENSIONS)
+  # uncertainty_propagation: false            # Future: Parameter uncertainty
+  uncertainty_samples: 10                      # Monte Carlo samples for robust optimization (reduced for testing)
+  # uncertainty_confidence_level: 0.95        # Future: Confidence level for robust optimization
+  
+  # OPTIMIZATION ALGORITHM PARAMETERS
+  algorithm:
+    method: "SLSQP"                            # Sequential Least Squares Programming
+    max_iterations: 100                        # Maximum optimization iterations (reduced for testing)
+    convergence_tolerance: 1e-6                # Convergence threshold (relaxed for testing)
+    gradient_method: "finite_difference"       # Gradient computation method
+    step_size: 1e-6                           # Finite difference step size
+    
+  # VALIDATION AND SAFETY
+  validation:
+    check_allocation_sum: true                 # Ensure allocations sum to budget
+    check_constraint_satisfaction: true        # Validate all constraints satisfied
+    warn_extreme_changes: true                 # Warn for large allocation changes
+    max_channel_change_pct: 200               # Maximum % change per channel
+    
+  # PERFORMANCE SETTINGS (FUTURE EXTENSIONS)
+  # performance:                              # Future: Performance optimizations
+  #   parallel_scenarios: false              # Future: Parallel scenario processing  
+  #   cache_model_predictions: true          # Future: Model prediction caching
+  #   use_approximate_gradients: true        # Future: Approximate gradient methods
+
+# =============================================================================
+# ✅ MODEL EVALUATION - Assess model quality and performance
+# Stage: 7. EVALUATE
+# Hint: Adjust thresholds based on business accuracy requirements
+# Scripts: src/mmm/evaluation/validator.py, src/mmm/cli.py (evaluate)
+# =============================================================================
+evaluation:
+  # VALIDATION STRATEGIES
+  validation_strategies:
+    temporal_holdout: true                     # Hold out recent periods
+    brand_holdout: false                       # Hold out brands (future extension)
+    platform_holdout: false                   # Hold out platforms (future extension)
+    seasonal_holdout: false                    # Hold out seasons (future extension)
+  
+  # DIGITAL VALIDATION
+  digital_checks:
+    platform_attribution_compare: true        # Compare to platform attribution
+    incrementality_threshold: 1.1             # Incrementality detection threshold
+    external_incrementality_calibration: false # Incrementality tests (future extension)
+  
+  # PERFORMANCE THRESHOLDS - Adjust based on business needs
+  metrics:
+    mape_threshold: 0.15                       # Max MAPE (15% recommended)
+    smape_threshold: 0.15                      # Max SMAPE (15%)
+    coverage_threshold: 0.8                    # Prediction interval coverage (80%)
+    r2_threshold: 0.7                          # R-squared threshold
+  
+  # ADVANCED FEATURE VALIDATION (FUTURE EXTENSIONS)
+  advanced_feature_validation:
+    creative_fatigue:
+      refresh_detection_rate: [0.1, 0.3]       # Expected refresh rate
+      fatigue_decay_consistency: true          # Monotonic decay
+    attribution:
+      total_attribution_sum: [0.95, 1.05]      # Attribution sum check
+      channel_contribution_stability: 0.2      # Stability check
+    baseline:
+      trend_smoothness: 0.1                    # Trend smoothness
+      macro_correlation_bounds: [0.1, 0.8]     # Macro correlation bounds
+    custom_terms:
+      promotional_effect_consistency: true      # Promo consistency
+      business_logic_validation: true          # Business rule validation
+  
+  # QUALITY THRESHOLDS
+  data_quality_threshold: 0.8                  # Data quality threshold
+
+# =============================================================================
+# 📊 REPORTING AND OUTPUTS - Generate insights and recommendations
+# Stage: 8. REPORT
+# Hint: Enable executive reports for business stakeholders
+# Scripts: src/mmm/reporting/dashboard.py, src/mmm/cli.py (report)
+# =============================================================================
+reports:
+  executive_deck: true                        # Generate executive summary
+  dashboard_exports: true                     # Export dashboard data
+
+# =============================================================================
+# 🔄 PIPELINE ORCHESTRATION - End-to-end workflow management
+# Stage: ALL STAGES
+# Hint: Use default steps for complete pipeline, customize as needed
+# Scripts: src/mmm/cli.py (run command)
+# =============================================================================
+# ORCHESTRATION (FUTURE EXTENSIONS)
+# orchestration:                             # Future: Pipeline orchestration
+#   default_steps: ["ingest", "validate", "transform", "features", "train", "optimize", "evaluate", "report"]  # Future: Default pipeline steps
+  # FUTURE EXTENSIONS - Pipeline orchestration features
+  # resume_policy: "from_checkpoint"          # Future: Restart handling
+  # cache_keys: ["date", "brand", "region"]   # Future: Caching keys  
+  # fail_fast: false                         # Future: Stop on error vs continue
+
+# =============================================================================
+# 🔧 SYSTEM CONFIGURATION - Environment and infrastructure settings
+# Stage: INFRASTRUCTURE
+# Hint: Configure for your deployment environment
+# =============================================================================
+
+# LOGGING AND MONITORING
+logging:
+  level: "INFO"                               # DEBUG/INFO/WARNING/ERROR
+  format: "json"                              # json (structured) or text
+  file_rotation: true                         # Rotate logs
+  mask_keys: ["api_key", "secret"]            # Mask sensitive data
+
+# EXPERIMENT TRACKING (FUTURE EXTENSIONS)
+# tracking:                                 # Future: Experiment tracking
+#   mlflow:                                 # Future: MLflow integration
+#     experiment_name: "conjura_mmm"        # Future: MLflow experiment
+#     tags:                                 # Future: Experiment tags
+#       environment: "local"                # Future: Execution environment
+#       dataset: "conjura"                  # Future: Dataset identifier
+#       model_type: "hierarchical_bayesian" # Future: Model type
+
+# RUNTIME RESOURCES (FUTURE EXTENSIONS)
+# runtime:                                  # Future: Runtime resource management
+#   device: "auto"                          # Future: auto/cpu/gpu
+#   n_threads: 4                            # Future: CPU threads
+#   memory_limit_gb: 16                     # Future: Memory limit
+
+# DEPLOYMENT PROFILES - Environment-specific settings
+profiles:
+  local:                                      # Local development
+    paths:
+      artifacts: "artifacts"
+    # runtime:                              # Future: Runtime settings per profile
+    #   device: "cpu"                       # Future: Device specification
+  docker:                                     # Docker container
+    paths:
+      artifacts: "/workspace/artifacts"
+    # runtime:                              # Future: Runtime settings per profile
+    #   device: "gpu"                       # Future: Device specification
+  k8s:                                        # Kubernetes cluster
+    paths:
+      artifacts: "/mnt/artifacts"
+    # runtime:                              # Future: Runtime settings per profile
+    #   device: "gpu"                       # Future: Device specification
+    #   memory_limit_gb: 32                 # Future: Memory limit
+
+# =============================================================================
+# 🧪 FUTURE EXTENSIONS - Disabled for current implementation
+# =============================================================================
+# The following sections contain advanced features that are planned for future
+# releases but not currently implemented. These variables are excluded from
+# validation to prevent false positives in config usage tests.
+
+# Unused variables (future extensions - commented out):
+# data:
+#   brands: []                                # Future: Multi-brand analysis
+#   regions: []                               # Future: Multi-region analysis  
+#   keys: []                                  # Future: Custom key mapping
+# 
+# ingest:
+#   connector_priority: []                    # Future: Multi-source priority
+#
+# optimization:
+#   business_logic:
+#     fatigue_penalty: true                   # Future: Creative fatigue penalty
+#     overlap_adjustment: true                # Future: Audience overlap adjust
+#     platform_synergies: false              # Future: Cross-platform synergy
+#     maintain_baseline_spend: true           # Future: Minimum spend rules
+#     respect_capacity_limits: true           # Future: Platform capacity
+#   performance:
+#     parallel_scenarios: false               # Future: Parallel processing
+#     cache_model_predictions: true           # Future: Prediction caching
+#     use_approximate_gradients: true         # Future: Approximate gradients
+#   uncertainty_propagation: false            # Future: Parameter uncertainty
+#   uncertainty_confidence_level: 0.95        # Future: Confidence intervals
+#
+# orchestration:
+#   cache_keys: []                            # Future: Caching optimization
+#   default_steps: []                         # Used but via .get() method
+#   fail_fast: false                         # Future: Error handling
+#   resume_policy: "from_checkpoint"          # Future: Resume capability
+#
+# profiles:
+#   docker:
+#     runtime:
+#       device: "gpu"                         # Future: GPU support
+#   k8s:
+#     runtime:
+#       device: "gpu"                         # Future: K8s GPU support  
+#       memory_limit_gb: 32                   # Future: K8s memory config
+  # external_validation: false               # Future: External tests
+  # data_sources:                           # Future: External data integration
+  #   competitor_api:                       # Future: Competitor data
+  #     enabled: false                      # Future: Enable competitor API
+  #     refresh_frequency: "weekly"         # Future: Data refresh frequency
+  #   economic_data:                        # Future: Economic indicators
+  #     enabled: false                      # Future: Enable economic data
+  #     indicators: ["gdp_growth", "consumer_confidence"]  # Future: Economic indicators list
+  #   market_research:                      # Future: Market research data
+  #     enabled: false                      # Future: Enable market research
+  #     brand_tracking: false               # Future: Brand tracking data
+
+# PRIVACY AND COMPLIANCE (FUTURE EXTENSION)
+privacy:
+  differential_privacy: false                 # Add noise for privacy (future extension)
+  gdpr_mode: false                           # GDPR compliance (future extension)
+  ios14_5_modeling: false                    # iOS 14.5+ attribution (future extension)
+
+# SYNTHETIC DATA (TESTING ONLY)
+synthetic_data:
+  enabled: false                              # Generate synthetic data for testing
+  duration_weeks: 104                         # 2 years of synthetic data
+  noise_level: 0.1                           # 10% noise
+  seed: 42                                    # Reproducible synthetic data
+  truth_parameters:
+    roi_ranges: [0.5, 8.0]
+    decay_ranges: [0.3, 0.9]
+    saturation_ranges: [0.1, 2.0]
+    overlap_factor: 0.15
+
+# =============================================================================
+# 📋 PIPELINE STAGE SUMMARY
+# =============================================================================
+# 1. INGEST    → ingest, data (channel mapping)
+# 2. VALIDATE  → validation (quality checks, business rules)
+# 3. TRANSFORM → enhanced_cleaning (data cleaning policies)
+# 4. FEATURES  → features.* (adstock, saturation, seasonality, baseline)
+# 5. TRAIN     → model, training, complexity (Bayesian model training)
+# 6. OPTIMIZE  → optimization (budget allocation)
+# 7. EVALUATE  → evaluation (model validation and diagnostics)
+# 8. REPORT    → reports (insights and recommendations)
+#
+# INFRASTRUCTURE → logging, tracking, runtime, profiles
+# FUTURE         → attribution, creative_fatigue, external_data, privacy
+# =============================================================================
