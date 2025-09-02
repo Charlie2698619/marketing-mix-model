@@ -1,19 +1,3 @@
-src/mmm/
-├── cli.py                  # Command-line interface
-├── config/                 # Configuration management
-│   ├── __init__.py
-│   └── settings.py
-├── data/                   # Data pipeline
-│   ├── ingestion.py       # Figshare data ingestion
-│   ├── validation.py      # Data quality checks
-│   ├── transformation.py  # Data preprocessing
-│   └── features.py        # Feature engineering
-├── models/                 # Model implementations
-│   ├── base.py           # Base model interface
-│   ├── meridian.py       # Google Meridian implementation
-│   └── pymc.py           # PyMC implementation (planned)
-└── utils/                  # Utilities
-    └── logging.py         # Structured logging
 
 # Hierarchical Bayesian Marketing Mix Modeling (MMM) System
 
